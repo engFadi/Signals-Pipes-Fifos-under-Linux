@@ -1,0 +1,14 @@
+# Edge case: N=2 (source ↔ sink directly, no middles), M=3
+team_member_count       = 2
+furniture_piece_count   = 3
+target_round_wins       = 2
+min_delay_ms            = 1
+max_delay_ms            = 5
+tiredness_increment_ms  = 0
+max_delay_cap_ms        = 50
+random_serials_enabled  = 1
+opengl_enabled          = 0
+openmp_enabled          = 0
+random_seed             = 99
+log_verbose             = 0
+referee_fifo_path       = /tmp/furnish_referee.fifo

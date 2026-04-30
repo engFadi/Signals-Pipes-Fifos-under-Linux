@@ -1,0 +1,32 @@
+# ENCS4330 Project #1 — Home Furnishing Competition
+# All values are user-defined. Lines starting with '#' are comments.
+
+team_member_count       = 5
+furniture_piece_count   = 10
+target_round_wins       = 2
+
+# Per-hop pause range, in milliseconds
+min_delay_ms            = 40
+max_delay_ms            = 180
+
+# Tiredness: each handled piece adds this many ms to a member's base delay
+tiredness_increment_ms  = 3
+max_delay_cap_ms        = 1500
+
+# 1 = system assigns random unique serials each round
+# 0 = use the comma-separated list in serials_list (length must == furniture_piece_count)
+random_serials_enabled  = 1
+serials_list            =
+
+# Optional features (Phase 12+)
+opengl_enabled          = 0
+openmp_enabled          = 1
+
+# 0 means seed from time(NULL); any non-zero value gives a deterministic run
+random_seed             = 42
+
+# Verbose hop-by-hop logging
+log_verbose             = 1
+
+# Where the referee FIFO lives (must be writable)
+referee_fifo_path       = /tmp/furnish_referee.fifo
