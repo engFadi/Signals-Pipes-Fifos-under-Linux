@@ -1,5 +1,5 @@
 members_no=6
-furniture_pieces=10
+furniture_pieces=5
 auto-serial=1
 pause-limit=5
 win-rounds=2
