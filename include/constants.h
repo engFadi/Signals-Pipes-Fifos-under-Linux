@@ -13,6 +13,9 @@
 /* random token range */
 #define RANDOM_MIN 1
 #define RANDOM_MAX 9
+#define DEFAULT_MIN_PAUSE 0.10
+#define DEFAULT_MAX_PAUSE 0.50
+#define FATIGUE_STEP 0.01
 
 /* Furniture piece enum and struct */
 typedef enum {

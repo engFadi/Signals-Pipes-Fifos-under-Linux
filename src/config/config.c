@@ -38,6 +38,38 @@ static int read_config_value(const char *path, const char *key, int default_val)
     return result;
 }
 
+static double read_config_double_value(const char *path, const char *key, double default_val) {
+    FILE *file = fopen(path, "r");
+    if (!file) {
+        return default_val;
+    }
+
+    char line[LINE_BUF];
+    double result = default_val;
+
+    while (fgets(line, sizeof(line), file)) {
+        char config_key[KEY_BUF];
+        double value;
+
+        if (sscanf(line, " %127[^=]=%lf", config_key, &value) == 2) {
+            for (char *p = config_key; *p; ++p) {
+                if (*p == ' ' || *p == '\t') {
+                    *p = '\0';
+                    break;
+                }
+            }
+
+            if (strcmp(config_key, key) == 0) {
+                result = value;
+                break;
+            }
+        }
+    }
+
+    fclose(file);
+    return result;
+}
+
 int load_settings(int argc, char *argv[], AppSettings *settings) {
     const char *config_path = getenv("CONFIG_PATH");
     int override_count = 0;
@@ -46,6 +78,8 @@ int load_settings(int argc, char *argv[], AppSettings *settings) {
     settings->child_count = MIN_CHILDREN;
     settings->furniture_pieces = DEFAULT_FURNITURE_PIECES;  /* default */
     settings->auto_serial = 1;         /* default: auto-assign */
+    settings->min_pause = DEFAULT_MIN_PAUSE;
+    settings->max_pause = DEFAULT_MAX_PAUSE;
 
     for (int i = 1; i < argc; ++i) {
         if (strcmp(argv[i], "-c") == 0 || strcmp(argv[i], "--config") == 0) {
@@ -97,6 +131,30 @@ int load_settings(int argc, char *argv[], AppSettings *settings) {
     } else {
         fprintf(stderr, "%s: invalid auto-serial — default %d used\n",
                 settings->config_path, settings->auto_serial);
+    }
+
+    /* read min_pause */
+    double min_pause = read_config_double_value(settings->config_path, "min_pause", DEFAULT_MIN_PAUSE);
+    if (min_pause > 0.0) {
+        settings->min_pause = min_pause;
+    } else {
+        fprintf(stderr, "%s: invalid min_pause — default %.2f used\n",
+                settings->config_path, DEFAULT_MIN_PAUSE);
+    }
+
+    /* read max_pause */
+    double max_pause = read_config_double_value(settings->config_path, "max_pause", DEFAULT_MAX_PAUSE);
+    if (max_pause > 0.0) {
+        settings->max_pause = max_pause;
+    } else {
+        fprintf(stderr, "%s: invalid max_pause — default %.2f used\n",
+                settings->config_path, DEFAULT_MAX_PAUSE);
+    }
+
+    if (settings->min_pause > settings->max_pause) {
+        double tmp = settings->min_pause;
+        settings->min_pause = settings->max_pause;
+        settings->max_pause = tmp;
     }
 
     if (override_count > 0) {

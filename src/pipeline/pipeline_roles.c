@@ -1,7 +1,9 @@
+#include <errno.h>
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/select.h>
+#include <time.h>
 #include <unistd.h>
 #include "furniture.h"
 #include "pipeline_io.h"
@@ -9,6 +11,56 @@
 #include "pipeline_shared.h"
 
 static volatile sig_atomic_t ack_flag = 0;
+
+static void seed_process_random(unsigned int member_id) {
+    unsigned int seed = (unsigned int)time(NULL) ^ (unsigned int)getpid() ^ (member_id * 2654435761u);
+    srand(seed);
+}
+
+static double random_pause_between(double min_pause, double max_pause) {
+    if (max_pause < min_pause) {
+        double tmp = min_pause;
+        min_pause = max_pause;
+        max_pause = tmp;
+    }
+
+    double fraction = (double)rand() / ((double)RAND_MAX + 1.0);
+    return min_pause + fraction * (max_pause - min_pause);
+}
+
+static void sleep_for_pause(double pause_seconds) {
+    if (pause_seconds < 0.0) {
+        return;
+    }
+
+    struct timespec request;
+    request.tv_sec = (time_t)pause_seconds;
+    request.tv_nsec = (long)((pause_seconds - (double)request.tv_sec) * 1000000000.0);
+    if (request.tv_nsec < 0) {
+        request.tv_nsec = 0;
+    }
+
+    while (nanosleep(&request, &request) == -1 && errno == EINTR) {
+    }
+}
+
+static void apply_member_pause(PipelineContext *ctx, int member_id) {
+    double before_min = ctx->current_min_pause;
+    double before_max = ctx->current_max_pause;
+    double chosen_pause = random_pause_between(before_min, before_max);
+
+    printf("member %d pause:\n", member_id);
+    printf("range before = [%.2f, %.2f]\n", before_min, before_max);
+    printf("chosen pause = %.2f\n", chosen_pause);
+    fflush(stdout);
+
+    sleep_for_pause(chosen_pause);
+
+    ctx->current_min_pause += FATIGUE_STEP;
+    ctx->current_max_pause += FATIGUE_STEP;
+    printf("range after = [%.2f, %.2f]\n", ctx->current_min_pause, ctx->current_max_pause);
+    fflush(stdout);
+}
 
 static void sigusr1_handler(int sig) {
     (void)sig;
@@ -25,6 +77,8 @@ static void print_source_pile(PipelineContext *ctx) {
 }
 
 void run_source(PipelineContext *ctx, int forward_fd[2], int backward_fd[2]) {
+    seed_process_random(0);
+
     struct sigaction sa;
     sa.sa_handler = sigusr1_handler;
     sigemptyset(&sa.sa_mask);
@@ -59,6 +113,8 @@ void run_source(PipelineContext *ctx, int forward_fd[2], int backward_fd[2]) {
         int idx = available_indices[rand() % available_count];
         printf("source selected serial %d with status AVAILABLE\n", ctx->furniture[idx].serial_no);
         fflush(stdout);
+
+        apply_member_pause(ctx, 0);
 
         sigprocmask(SIG_BLOCK, &mask, &prev);
         ack_flag = 0;
@@ -111,6 +167,7 @@ void run_source(PipelineContext *ctx, int forward_fd[2], int backward_fd[2]) {
                 furniture_display_table(ctx->furniture, ctx->furniture_count);
             }
         } else if (returned_serial == serial) {
+            apply_member_pause(ctx, 0);
             ctx->furniture[idx].status = BLOCKED;
             printf("RETURN: serial %d marked BLOCKED. No blocked pieces released.\n", serial);
             fflush(stdout);
@@ -126,6 +183,8 @@ void run_source(PipelineContext *ctx, int forward_fd[2], int backward_fd[2]) {
 }
 
 void run_sink(PipelineContext *ctx, int index, int forward_fd[2], int backward_fd[2]) {
+    seed_process_random((unsigned int)index);
+
     int previous = index - 1;
     int serial = 0;
     int placed_count = 0;
@@ -140,6 +199,8 @@ void run_sink(PipelineContext *ctx, int index, int forward_fd[2], int backward_f
         }
 
         int piece_order = ctx->furniture[furniture_idx].order;
+
+        apply_member_pause(ctx, index);
 
         if (piece_order == ctx->expected_order) {
             ++placed_count;
@@ -184,6 +245,8 @@ void run_middle(PipelineContext *ctx,
                 int forward_out[2],
                 int backward_in[2],
                 int backward_out[2]) {
+    seed_process_random((unsigned int)index);
+
     fd_set readfds;
     int max_fd = (forward_in[0] > backward_in[0]) ? forward_in[0] : backward_in[0];
 
@@ -204,6 +267,8 @@ void run_middle(PipelineContext *ctx,
                 break;
             }
 
+            apply_member_pause(ctx, index);
+
             int idx = pipeline_find_piece_index(ctx->furniture, ctx->furniture_count, serial);
             if (idx >= 0) {
                 ctx->furniture[idx].status = MOVING_FORWARD;
@@ -221,6 +286,8 @@ void run_middle(PipelineContext *ctx,
             if (read_int(backward_in[0], &serial) != 1) {
                 continue;
             }
+
+            apply_member_pause(ctx, index);
 
             int idx = pipeline_find_piece_index(ctx->furniture, ctx->furniture_count, serial);
             if (idx >= 0) {

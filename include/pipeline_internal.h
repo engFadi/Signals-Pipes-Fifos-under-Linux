@@ -8,7 +8,8 @@ typedef struct {
     furniture_piece *furniture;
     int furniture_count;
     int expected_order;
-    /* removed single blocked index tracking; use per-piece status instead */
+    double current_min_pause;
+    double current_max_pause;
     pid_t source_pid;
 } PipelineContext;
 

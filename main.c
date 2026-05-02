@@ -21,7 +21,11 @@ int main(int argc, char *argv[]){
     /* Display furniture inventory table */
     furniture_display_table(furniture, settings.furniture_pieces);
 
-    int result = run_pipeline(settings.child_count, furniture, settings.furniture_pieces);
+    int result = run_pipeline(settings.child_count,
+                              furniture,
+                              settings.furniture_pieces,
+                              settings.min_pause,
+                              settings.max_pause);
 
     furniture_free(furniture);
     return result;

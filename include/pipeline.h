@@ -3,6 +3,10 @@
 
 #include "constants.h"
 
-int run_pipeline(int child_count, furniture_piece *furniture, int furniture_count);
+int run_pipeline(int child_count,
+				 furniture_piece *furniture,
+				 int furniture_count,
+				 double min_pause,
+				 double max_pause);
 
 #endif /* SIGNALS_PIPES_PIPELINE_H */

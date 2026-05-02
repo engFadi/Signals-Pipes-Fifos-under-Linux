@@ -11,7 +11,11 @@
 #include "pipeline_roles.h"
 #include "pipeline_shared.h"
 
-int run_pipeline(int child_count, furniture_piece *furniture, int furniture_count) {
+int run_pipeline(int child_count,
+                 furniture_piece *furniture,
+                 int furniture_count,
+                 double min_pause,
+                 double max_pause) {
     if (child_count < MIN_CHILDREN) {
         child_count = MIN_CHILDREN;
     }
@@ -25,6 +29,8 @@ int run_pipeline(int child_count, furniture_piece *furniture, int furniture_coun
     ctx.furniture = shared_furniture;
     ctx.furniture_count = furniture_count;
     ctx.expected_order = 0;
+    ctx.current_min_pause = min_pause;
+    ctx.current_max_pause = max_pause;
     ctx.source_pid = 0;
 
     srand((unsigned int)time(NULL) ^ (unsigned int)getpid());
