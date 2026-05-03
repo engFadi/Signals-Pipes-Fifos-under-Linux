@@ -11,6 +11,7 @@ typedef struct {
     double current_min_pause;
     double current_max_pause;
     pid_t source_pid;
+    int team_id;
 } PipelineContext;
 
 #endif /* SIGNALS_PIPES_PIPELINE_INTERNAL_H */

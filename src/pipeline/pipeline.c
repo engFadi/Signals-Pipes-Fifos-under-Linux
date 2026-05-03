@@ -15,7 +15,8 @@ int run_pipeline(int child_count,
                  furniture_piece *furniture,
                  int furniture_count,
                  double min_pause,
-                 double max_pause) {
+                 double max_pause,
+                 int team_id) {
     if (child_count < MIN_CHILDREN) {
         child_count = MIN_CHILDREN;
     }
@@ -32,6 +33,7 @@ int run_pipeline(int child_count,
     ctx.current_min_pause = min_pause;
     ctx.current_max_pause = max_pause;
     ctx.source_pid = 0;
+    ctx.team_id = team_id;
 
     srand((unsigned int)time(NULL) ^ (unsigned int)getpid());
 

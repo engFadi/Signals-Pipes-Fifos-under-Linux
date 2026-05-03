@@ -16,7 +16,7 @@ int main(void) {
     int expected_order = 0;
 
     printf("Initial inventory:\n");
-    furniture_display_table(f, count);
+    furniture_display_table(f, count, 1);
 
     /* 1) select serial 4 */
     int idx = 0;
@@ -37,7 +37,7 @@ int main(void) {
         /* returned to source */
         f[idx].status = BLOCKED;
         printf("RETURN: serial %d marked BLOCKED. No blocked pieces released.\n", f[idx].serial_no);
-        furniture_display_table(f, count);
+        furniture_display_table(f, count, 1);
     }
 
     /* 2) select serial 3 */
@@ -58,12 +58,12 @@ int main(void) {
         /* returned to source */
         f[idx].status = BLOCKED;
         printf("RETURN: serial %d marked BLOCKED. No blocked pieces released.\n", f[idx].serial_no);
-        furniture_display_table(f, count);
+        furniture_display_table(f, count, 1);
     }
 
     /* Verify that the previously blocked serial 4 remains BLOCKED */
     printf("After second return, inventory should show both 4 and 3 as BLOCKED:\n");
-    furniture_display_table(f, count);
+    furniture_display_table(f, count, 1);
 
     /* 3) select serial 1 which is order 0 -> success */
     idx = 2;
@@ -83,7 +83,7 @@ int main(void) {
                 printf("Releasing blocked serial: %d\n", f[j].serial_no);
             }
         }
-        furniture_display_table(f, count);
+        furniture_display_table(f, count, 1);
     } else {
         printf("unexpected: test sequence failed\n");
     }

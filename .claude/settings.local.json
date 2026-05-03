@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(timeout 60 ./main_app)",
+      "Bash(gtimeout 60 ./main_app)",
+      "Bash(make clean *)",
+      "Bash(make)",
+      "Bash(./main_app)"
+    ]
+  }
+}

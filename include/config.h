@@ -8,6 +8,7 @@ typedef struct {
     int auto_serial;
     double min_pause;
     double max_pause;
+    int win_rounds;
 } AppSettings;
 
 int load_settings(int argc, char *argv[], AppSettings *settings);

@@ -16,6 +16,7 @@
 #define DEFAULT_MIN_PAUSE 0.10
 #define DEFAULT_MAX_PAUSE 0.50
 #define FATIGUE_STEP 0.01
+#define DEFAULT_WIN_ROUNDS 2
 
 /* Furniture piece enum and struct */
 typedef enum {

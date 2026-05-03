@@ -44,36 +44,16 @@ static void sleep_for_pause(double pause_seconds) {
     }
 }
 
-static void apply_member_pause(PipelineContext *ctx, int member_id) {
-    double before_min = ctx->current_min_pause;
-    double before_max = ctx->current_max_pause;
-    double chosen_pause = random_pause_between(before_min, before_max);
-
-    printf("member %d pause:\n", member_id);
-    printf("range before = [%.2f, %.2f]\n", before_min, before_max);
-    printf("chosen pause = %.2f\n", chosen_pause);
-    fflush(stdout);
-
+static void apply_member_pause(PipelineContext *ctx) {
+    double chosen_pause = random_pause_between(ctx->current_min_pause, ctx->current_max_pause);
     sleep_for_pause(chosen_pause);
-
     ctx->current_min_pause += FATIGUE_STEP;
     ctx->current_max_pause += FATIGUE_STEP;
-    printf("range after = [%.2f, %.2f]\n", ctx->current_min_pause, ctx->current_max_pause);
-    fflush(stdout);
 }
 
 static void sigusr1_handler(int sig) {
     (void)sig;
     ack_flag = 1;
-}
-
-static void print_source_pile(PipelineContext *ctx) {
-    printf("source (0) pile:");
-    for (int i = 0; i < ctx->furniture_count; ++i) {
-        printf(" %d", ctx->furniture[i].serial_no);
-    }
-    printf("\n");
-    fflush(stdout);
 }
 
 void run_source(PipelineContext *ctx, int forward_fd[2], int backward_fd[2]) {
@@ -88,8 +68,6 @@ void run_source(PipelineContext *ctx, int forward_fd[2], int backward_fd[2]) {
     sigset_t mask, prev;
     sigemptyset(&mask);
     sigaddset(&mask, SIGUSR1);
-
-    print_source_pile(ctx);
 
     int *available_indices = malloc((size_t)ctx->furniture_count * sizeof(int));
     if (available_indices == NULL) {
@@ -111,10 +89,12 @@ void run_source(PipelineContext *ctx, int forward_fd[2], int backward_fd[2]) {
         }
 
         int idx = available_indices[rand() % available_count];
-        printf("source selected serial %d with status AVAILABLE\n", ctx->furniture[idx].serial_no);
+
+        printf("[T%d] Source picked serial %d (order %d)\n",
+               ctx->team_id, ctx->furniture[idx].serial_no, ctx->furniture[idx].order);
         fflush(stdout);
 
-        apply_member_pause(ctx, 0);
+        apply_member_pause(ctx);
 
         sigprocmask(SIG_BLOCK, &mask, &prev);
         ack_flag = 0;
@@ -122,8 +102,6 @@ void run_source(PipelineContext *ctx, int forward_fd[2], int backward_fd[2]) {
         int serial = ctx->furniture[idx].serial_no;
         ctx->furniture[idx].status = MOVING_FORWARD;
         write_int(forward_fd[1], serial);
-        printf("0 -> 1: serial=%d (order=%d, status=MOVING_FORWARD)\n", serial, ctx->furniture[idx].order);
-        fflush(stdout);
 
         int returned_serial = -1;
         while (!ack_flag && returned_serial == -1) {
@@ -150,28 +128,29 @@ void run_source(PipelineContext *ctx, int forward_fd[2], int backward_fd[2]) {
         if (ack_flag) {
             ctx->furniture[idx].status = PLACED;
             ++placed_count;
-            printf("SUCCESS: serial %d placed. Releasing blocked pieces.\n", serial);
+            printf("[T%d] >> Serial %d placed (order %d) -- %d/%d done\n",
+                   ctx->team_id, serial, ctx->furniture[idx].order,
+                   placed_count, ctx->furniture_count);
             fflush(stdout);
 
             int released = 0;
             for (int j = 0; j < ctx->furniture_count; ++j) {
                 if (ctx->furniture[j].status == BLOCKED) {
                     ctx->furniture[j].status = AVAILABLE;
-                    printf("Releasing blocked serial: %d\n", ctx->furniture[j].serial_no);
-                    fflush(stdout);
                     ++released;
                 }
             }
 
             if (released > 0) {
-                furniture_display_table(ctx->furniture, ctx->furniture_count);
+                printf("[T%d] Released %d blocked pieces\n", ctx->team_id, released);
+                fflush(stdout);
             }
         } else if (returned_serial == serial) {
-            apply_member_pause(ctx, 0);
+            apply_member_pause(ctx);
             ctx->furniture[idx].status = BLOCKED;
-            printf("RETURN: serial %d marked BLOCKED. No blocked pieces released.\n", serial);
+            printf("[T%d] << Serial %d returned -> BLOCKED\n",
+                   ctx->team_id, serial);
             fflush(stdout);
-            furniture_display_table(ctx->furniture, ctx->furniture_count);
         }
 
         sigprocmask(SIG_SETMASK, &prev, NULL);
@@ -185,56 +164,36 @@ void run_source(PipelineContext *ctx, int forward_fd[2], int backward_fd[2]) {
 void run_sink(PipelineContext *ctx, int index, int forward_fd[2], int backward_fd[2]) {
     seed_process_random((unsigned int)index);
 
-    int previous = index - 1;
     int serial = 0;
-    int placed_count = 0;
-    int returned_count = 0;
 
     while (read_int(forward_fd[0], &serial) == 1) {
         int furniture_idx = pipeline_find_piece_index(ctx->furniture, ctx->furniture_count, serial);
         if (furniture_idx == -1) {
-            printf("sink (%d): ERROR - piece not found\n", index);
-            fflush(stdout);
             continue;
         }
 
         int piece_order = ctx->furniture[furniture_idx].order;
 
-        apply_member_pause(ctx, index);
+        apply_member_pause(ctx);
 
         if (piece_order == ctx->expected_order) {
-            ++placed_count;
             ctx->furniture[furniture_idx].status = PLACED;
-            printf("sink (%d) <- %d: serial=%d (order=%d, CORRECT ORDER, status=PLACED)\n",
-                   index, previous, serial, piece_order);
-            printf("piece reached house\n");
-            fflush(stdout);
-            furniture_display_table(ctx->furniture, ctx->furniture_count);
 
             ++ctx->expected_order;
 
             if (ctx->source_pid > 0) {
                 kill(ctx->source_pid, SIGUSR1);
-                printf("%d -> source: SIGUSR1 (SUCCESS)\n", index);
-                fflush(stdout);
             }
         } else {
-            ++returned_count;
             ctx->furniture[furniture_idx].status = MOVING_BACKWARD;
-            printf("sink (%d) <- %d: serial=%d (order=%d, WRONG ORDER expected %d, status=MOVING_BACKWARD)\n",
-                   index, previous, serial, piece_order, ctx->expected_order);
-            printf("sending piece back via backward socket\n");
+            printf("[T%d] x Serial %d rejected (order %d, expected %d) -- sending back\n",
+                   ctx->team_id, serial, piece_order, ctx->expected_order);
             fflush(stdout);
-            furniture_display_table(ctx->furniture, ctx->furniture_count);
 
             write_int(backward_fd[1], serial);
-            printf("%d -> %d: serial=%d (status=MOVING_BACKWARD)\n", index, previous, serial);
-            fflush(stdout);
         }
     }
 
-    printf("sink (%d) completed: %d correct pieces, %d returned\n", index, placed_count, returned_count);
-    fflush(stdout);
     close(forward_fd[0]);
     close(backward_fd[1]);
 }
@@ -267,19 +226,14 @@ void run_middle(PipelineContext *ctx,
                 break;
             }
 
-            apply_member_pause(ctx, index);
+            apply_member_pause(ctx);
 
             int idx = pipeline_find_piece_index(ctx->furniture, ctx->furniture_count, serial);
             if (idx >= 0) {
                 ctx->furniture[idx].status = MOVING_FORWARD;
-                printf("%d <- %d: serial=%d (order=%d, status=MOVING_FORWARD)\n",
-                       index, index - 1, serial, ctx->furniture[idx].order);
-                fflush(stdout);
             }
 
             write_int(forward_out[1], serial);
-            printf("%d -> %d: serial=%d (status=MOVING_FORWARD)\n", index, index + 1, serial);
-            fflush(stdout);
         }
 
         if (FD_ISSET(backward_in[0], &readfds)) {
@@ -287,19 +241,14 @@ void run_middle(PipelineContext *ctx,
                 continue;
             }
 
-            apply_member_pause(ctx, index);
+            apply_member_pause(ctx);
 
             int idx = pipeline_find_piece_index(ctx->furniture, ctx->furniture_count, serial);
             if (idx >= 0) {
                 ctx->furniture[idx].status = MOVING_BACKWARD;
-                printf("%d <- %d: serial=%d (order=%d, status=MOVING_BACKWARD)\n",
-                       index, index + 1, serial, ctx->furniture[idx].order);
-                fflush(stdout);
             }
 
             write_int(backward_out[1], serial);
-            printf("%d -> %d: serial=%d (status=MOVING_BACKWARD)\n", index, index - 1, serial);
-            fflush(stdout);
         }
     }
 

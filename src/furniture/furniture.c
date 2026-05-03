@@ -129,10 +129,31 @@ static const char *status_to_string(piece_status status) {
     }
 }
 
-void furniture_display_table(furniture_piece *furniture, int count) {
+void furniture_reset_serials(furniture_piece *furniture, int count) {
+    int *serials = malloc((size_t)count * sizeof(int));
+    if (serials == NULL) {
+        perror("malloc");
+        return;
+    }
+
+    for (int i = 0; i < count; ++i) {
+        serials[i] = i + 1;
+    }
+
+    shuffle_serials(serials, count);
+
+    for (int i = 0; i < count; ++i) {
+        furniture[i].serial_no = serials[i];
+        furniture[i].status = AVAILABLE;
+    }
+
+    free(serials);
+}
+
+void furniture_display_table(furniture_piece *furniture, int count, int round) {
     printf("\n");
     printf("╔════════════════════════════════════════════════════╗\n");
-    printf("║          FURNITURE PIECES INVENTORY TABLE         ║\n");
+    printf("║     ROUND %d SHARED FURNITURE ORDER TABLE          ║\n", round);
     printf("╠════════════════════════════════════════════════════╣\n");
     printf("║ Serial No. │   Order   │     Status    │  Index   ║\n");
     printf("╠════════════════════════════════════════════════════╣\n");

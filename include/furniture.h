@@ -10,6 +10,9 @@ furniture_piece *furniture_init(int count, int auto_serial);
 void furniture_free(furniture_piece *furniture);
 
 /* Display furniture table */
-void furniture_display_table(furniture_piece *furniture, int count);
+void furniture_display_table(furniture_piece *furniture, int count, int round);
+
+/* Reset furniture for a new round: all pieces become AVAILABLE with new shuffled serials */
+void furniture_reset_serials(furniture_piece *furniture, int count);
 
 #endif /* SIGNALS_PIPES_FURNITURE_H */

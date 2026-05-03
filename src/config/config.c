@@ -80,6 +80,7 @@ int load_settings(int argc, char *argv[], AppSettings *settings) {
     settings->auto_serial = 1;         /* default: auto-assign */
     settings->min_pause = DEFAULT_MIN_PAUSE;
     settings->max_pause = DEFAULT_MAX_PAUSE;
+    settings->win_rounds = DEFAULT_WIN_ROUNDS;
 
     for (int i = 1; i < argc; ++i) {
         if (strcmp(argv[i], "-c") == 0 || strcmp(argv[i], "--config") == 0) {
@@ -149,6 +150,16 @@ int load_settings(int argc, char *argv[], AppSettings *settings) {
     } else {
         fprintf(stderr, "%s: invalid max_pause — default %.2f used\n",
                 settings->config_path, DEFAULT_MAX_PAUSE);
+    }
+
+    /* read win_rounds */
+    int win_rounds = read_config_value(settings->config_path, "win_rounds", -1);
+    if (win_rounds > 0) {
+        settings->win_rounds = win_rounds;
+    } else {
+        fprintf(stderr, "%s: invalid win_rounds — default %d used\n",
+                settings->config_path, DEFAULT_WIN_ROUNDS);
+        settings->win_rounds = DEFAULT_WIN_ROUNDS;
     }
 
     if (settings->min_pause > settings->max_pause) {

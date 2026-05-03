@@ -1,6 +1,6 @@
 members_no=6
-furniture_pieces=20
+furniture_pieces=5
 auto-serial=1
 min_pause=0.01
 max_pause=0.02
-win-rounds=2
+win_rounds=3
