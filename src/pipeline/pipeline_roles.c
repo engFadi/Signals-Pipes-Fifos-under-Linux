@@ -1,8 +1,8 @@
 #include <errno.h>
+#include <fcntl.h>
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <sys/select.h>
 #include <time.h>
 #include <unistd.h>
 #include "furniture.h"
@@ -28,25 +28,11 @@ static double random_pause_between(double min_pause, double max_pause) {
     return min_pause + fraction * (max_pause - min_pause);
 }
 
-static void sleep_for_pause(double pause_seconds) {
-    if (pause_seconds < 0.0) {
-        return;
-    }
-
-    struct timespec request;
-    request.tv_sec = (time_t)pause_seconds;
-    request.tv_nsec = (long)((pause_seconds - (double)request.tv_sec) * 1000000000.0);
-    if (request.tv_nsec < 0) {
-        request.tv_nsec = 0;
-    }
-
-    while (nanosleep(&request, &request) == -1 && errno == EINTR) {
-    }
-}
-
 static void apply_member_pause(PipelineContext *ctx) {
     double chosen_pause = random_pause_between(ctx->current_min_pause, ctx->current_max_pause);
-    sleep_for_pause(chosen_pause);
+    if (chosen_pause > 0.0) {
+        usleep((useconds_t)(chosen_pause * 1000000.0));
+    }
     ctx->current_min_pause += FATIGUE_STEP;
     ctx->current_max_pause += FATIGUE_STEP;
 }
@@ -56,18 +42,17 @@ static void sigusr1_handler(int sig) {
     ack_flag = 1;
 }
 
+static void set_nonblocking(int fd) {
+    int flags = fcntl(fd, F_GETFL, 0);
+    fcntl(fd, F_SETFL, flags | O_NONBLOCK);
+}
+
 void run_source(PipelineContext *ctx, int forward_fd[2], int backward_fd[2]) {
     seed_process_random(0);
 
-    struct sigaction sa;
-    sa.sa_handler = sigusr1_handler;
-    sigemptyset(&sa.sa_mask);
-    sa.sa_flags = 0;
-    sigaction(SIGUSR1, &sa, NULL);
+    signal(SIGUSR1, sigusr1_handler);
 
-    sigset_t mask, prev;
-    sigemptyset(&mask);
-    sigaddset(&mask, SIGUSR1);
+    set_nonblocking(backward_fd[0]);
 
     int *available_indices = malloc((size_t)ctx->furniture_count * sizeof(int));
     if (available_indices == NULL) {
@@ -96,34 +81,24 @@ void run_source(PipelineContext *ctx, int forward_fd[2], int backward_fd[2]) {
 
         apply_member_pause(ctx);
 
-        sigprocmask(SIG_BLOCK, &mask, &prev);
+        sighold(SIGUSR1);
         ack_flag = 0;
 
         int serial = ctx->furniture[idx].serial_no;
         ctx->furniture[idx].status = MOVING_FORWARD;
         write_int(forward_fd[1], serial);
 
+        sigrelse(SIGUSR1);
+
         int returned_serial = -1;
         while (!ack_flag && returned_serial == -1) {
-            fd_set readfds;
-            FD_ZERO(&readfds);
-            FD_SET(backward_fd[0], &readfds);
-
-            sigprocmask(SIG_SETMASK, &prev, NULL);
-
-            struct timeval tv;
-            tv.tv_sec = 0;
-            tv.tv_usec = 100000;
-
-            int select_ready = select(backward_fd[0] + 1, &readfds, NULL, NULL, &tv);
-            if (select_ready > 0 && FD_ISSET(backward_fd[0], &readfds)) {
-                if (read_int(backward_fd[0], &returned_serial) == 1) {
-                    break;
-                }
+            if (read_int_nonblock(backward_fd[0], &returned_serial) == 1) {
+                break;
             }
-
-            sigprocmask(SIG_BLOCK, &mask, NULL);
+            usleep(1000);
         }
+
+        sighold(SIGUSR1);
 
         if (ack_flag) {
             ctx->furniture[idx].status = PLACED;
@@ -153,7 +128,7 @@ void run_source(PipelineContext *ctx, int forward_fd[2], int backward_fd[2]) {
             fflush(stdout);
         }
 
-        sigprocmask(SIG_SETMASK, &prev, NULL);
+        sigrelse(SIGUSR1);
     }
 
     free(available_indices);
@@ -206,26 +181,22 @@ void run_middle(PipelineContext *ctx,
                 int backward_out[2]) {
     seed_process_random((unsigned int)index);
 
-    fd_set readfds;
-    int max_fd = (forward_in[0] > backward_in[0]) ? forward_in[0] : backward_in[0];
+    set_nonblocking(forward_in[0]);
+    set_nonblocking(backward_in[0]);
 
     while (1) {
-        FD_ZERO(&readfds);
-        FD_SET(forward_in[0], &readfds);
-        FD_SET(backward_in[0], &readfds);
+        int serial = 0;
+        int got_forward = 0;
+        int got_backward = 0;
 
-        int select_result = select(max_fd + 1, &readfds, NULL, NULL, NULL);
-        if (select_result <= 0) {
-            continue;
+        int rf = read_int_nonblock(forward_in[0], &serial);
+        if (rf == 1) {
+            got_forward = 1;
+        } else if (rf == 0) {
+            break;
         }
 
-        int serial = 0;
-
-        if (FD_ISSET(forward_in[0], &readfds)) {
-            if (read_int(forward_in[0], &serial) != 1) {
-                break;
-            }
-
+        if (got_forward) {
             apply_member_pause(ctx);
 
             int idx = pipeline_find_piece_index(ctx->furniture, ctx->furniture_count, serial);
@@ -236,19 +207,25 @@ void run_middle(PipelineContext *ctx,
             write_int(forward_out[1], serial);
         }
 
-        if (FD_ISSET(backward_in[0], &readfds)) {
-            if (read_int(backward_in[0], &serial) != 1) {
-                continue;
-            }
+        int serial_back = 0;
+        int rb = read_int_nonblock(backward_in[0], &serial_back);
+        if (rb == 1) {
+            got_backward = 1;
+        }
 
+        if (got_backward) {
             apply_member_pause(ctx);
 
-            int idx = pipeline_find_piece_index(ctx->furniture, ctx->furniture_count, serial);
+            int idx = pipeline_find_piece_index(ctx->furniture, ctx->furniture_count, serial_back);
             if (idx >= 0) {
                 ctx->furniture[idx].status = MOVING_BACKWARD;
             }
 
-            write_int(backward_out[1], serial);
+            write_int(backward_out[1], serial_back);
+        }
+
+        if (!got_forward && !got_backward) {
+            usleep(1000);
         }
     }
 

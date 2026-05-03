@@ -3,6 +3,7 @@
 
 void write_int(int fd, int value);
 int read_int(int fd, int *value);
+int read_int_nonblock(int fd, int *value);
 void close_pipe_pair(int pipefd[2]);
 
 #endif /* SIGNALS_PIPES_PIPELINE_IO_H */

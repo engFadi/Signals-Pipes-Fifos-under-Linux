@@ -1,6 +1,5 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <sys/socket.h>
 #include <sys/wait.h>
 #include <time.h>
 #include <unistd.h>
@@ -53,8 +52,8 @@ int run_pipeline(int child_count,
     }
 
     for (int i = 0; i < child_count - 1; ++i) {
-        if (socketpair(AF_UNIX, SOCK_STREAM, 0, sv[i]) == -1) {
-            perror("socketpair (forward)");
+        if (pipe(sv[i]) == -1) {
+            perror("pipe (forward)");
             for (int j = 0; j < i; ++j) {
                 close_pipe_pair(sv[j]);
                 close_pipe_pair(rv[j]);
@@ -67,8 +66,8 @@ int run_pipeline(int child_count,
     }
 
     for (int i = 0; i < child_count - 1; ++i) {
-        if (socketpair(AF_UNIX, SOCK_STREAM, 0, rv[i]) == -1) {
-            perror("socketpair (backward)");
+        if (pipe(rv[i]) == -1) {
+            perror("pipe (backward)");
             for (int j = 0; j < child_count - 1; ++j) {
                 close_pipe_pair(sv[j]);
                 close_pipe_pair(rv[j]);

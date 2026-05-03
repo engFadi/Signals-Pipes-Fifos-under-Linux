@@ -34,6 +34,20 @@ int read_int(int fd, int *value) {
     return 1;
 }
 
+int read_int_nonblock(int fd, int *value) {
+    ssize_t r = read(fd, value, sizeof(*value));
+    if (r == (ssize_t)sizeof(*value)) {
+        return 1;
+    }
+    if (r == 0) {
+        return 0;
+    }
+    if (r < 0 && (errno == EAGAIN || errno == EWOULDBLOCK || errno == EINTR)) {
+        return -1;
+    }
+    return -1;
+}
+
 void close_pipe_pair(int pipefd[2]) {
     close(pipefd[0]);
     close(pipefd[1]);

@@ -5,7 +5,20 @@
       "Bash(gtimeout 60 ./main_app)",
       "Bash(make clean *)",
       "Bash(make)",
-      "Bash(./main_app)"
+      "Bash(./main_app)",
+      "Bash(tar -tf signal.tar)",
+      "Read(//private/tmp/**)",
+      "Bash(tar -xf \"/Users/aboudfialah/Desktop/4th Year/Real Time - ENCS4330/C-source code 2 - Signals/signal.tar\")",
+      "Bash(xargs ls *)",
+      "Bash(rm -rf rand)",
+      "Bash(tar -xf \"/Users/aboudfialah/Desktop/4th Year/Real Time - ENCS4330/C-source code 3 - Randomness/rand.tar\")",
+      "Bash(rm -rf pipe fifo)",
+      "Bash(tar -xf \"/Users/aboudfialah/Desktop/4th Year/Real Time - ENCS4330/C-source code 4 - Pipes & Fifos/pipe.tar\")",
+      "Bash(tar -xf \"/Users/aboudfialah/Desktop/4th Year/Real Time - ENCS4330/C-source code 4 - Pipes & Fifos/fifo.tar\")",
+      "Bash(rm -rf queue)",
+      "Bash(tar -xf \"/Users/aboudfialah/Desktop/4th Year/Real Time - ENCS4330/C-source code 5 - Message Queues/queue.tar\")",
+      "Bash(cat)",
+      "Bash(./main_app -c /tmp/test_config2.txt)"
     ]
   }
 }
