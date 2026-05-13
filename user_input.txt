@@ -1,0 +1,6 @@
+members_no=5
+furniture_pieces=5
+auto-serial=1
+min_pause=0.05
+max_pause=0.06
+win_rounds=3
